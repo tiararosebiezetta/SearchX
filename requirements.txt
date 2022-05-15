@@ -9,3 +9,5 @@ python-telegram-bot
 requests
 telegraph
 tenacity
+flask
+flask_restful
