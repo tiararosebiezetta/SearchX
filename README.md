@@ -11,6 +11,7 @@
 
 > A simple Telegram Bot for searching data on Google Drive. Able to clone data from Drive / AppDrive / DriveApp / GDToT links. Supports MongoDB for storing authorized users record.
 
+[![Deploy on Scalingo](https://cdn.scalingo.com/deploy/button.svg)](https://my.scalingo.com/deploy?source=https://github.com/tiararosebiezetta/SearchX#main)
 </p>
 
 
