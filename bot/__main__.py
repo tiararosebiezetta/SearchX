@@ -4,7 +4,7 @@ from psutil import cpu_percent, cpu_count, disk_usage, virtual_memory
 from telegram import InlineKeyboardMarkup
 from telegram.ext import CommandHandler
 
-from bot import LOGGER, botStartTime, AUTHORIZED_CHATS, telegraph, dispatcher, updater
+from bot import LOGGER, botStartTime, AUTHORIZED_CHATS, DEST_DRIVES, TELEGRAPH, dispatcher, updater
 from bot.modules import auth, cancel, clone, count, delete, eval, list, permission, shell, status
 from bot.helper.ext_utils.bot_utils import get_readable_file_size, get_readable_time
 from bot.helper.telegram_helper.bot_commands import BotCommands
@@ -22,6 +22,12 @@ def start(update, context):
     else:
         sendMessage("<b>Access denied</b>", context.bot, update.message)
         LOGGER.info('Denied: {} [{}]'.format(update.message.from_user.first_name, update.message.from_user.id))
+
+def listkeys(update, context):
+    keys = ''
+    keys += '\n'.join(f"• <code>{key}</code>" for key in DEST_DRIVES.keys())
+    msg = f"<b><u>Available Keys</u></b>\n{keys}"
+    sendMessage(msg, context.bot, update.message)
 
 def ping(update, context):
     start_time = int(round(time.time() * 1000))
@@ -57,7 +63,7 @@ Choose a help category:
 '''
 
 help_string_user = f'''
-<u><b>User Commands</b></u>
+<b><u>User Commands</u></b>
 <br><br>
 • <b>/{BotCommands.StartCommand}</b>: Start the bot
 <br><br>
@@ -67,7 +73,7 @@ help_string_user = f'''
 <br><br>
 • <b>/{BotCommands.ListCommand} -f</b> &lt;query&gt;: Search files on Drives
 <br><br>
-• <b>/{BotCommands.CloneCommand}</b> &lt;url&gt;: Copy data from Drive / AppDrive / DriveApp / GDToT to Drive
+• <b>/{BotCommands.CloneCommand}</b> &lt;url&gt; &lt;key&gt;: Copy data from Drive / AppDrive / DriveApp / GDToT to Drive (Key optional)
 <br><br>
 • <b>/{BotCommands.CountCommand}</b> &lt;drive_url&gt;: Count data of Drive
 <br><br>
@@ -75,21 +81,23 @@ help_string_user = f'''
 <br><br>
 • <b>/{BotCommands.StatusCommand}</b>: Get a status of all tasks
 <br><br>
+• <b>/{BotCommands.ListKeysCommand}</b>: Get a list of all keys for the destination drives
+<br><br>
 • <b>/{BotCommands.PingCommand}</b>: Ping the bot
 <br><br>
 • <b>/{BotCommands.StatsCommand}</b>: Get the system stats
 <br><br>
-• <b>/{BotCommands.HelpCommand}</b>: Get this message
+• <b>/{BotCommands.HelpCommand}</b>: Get help about the bot
 '''
 
-help_user = telegraph[0].create_page(
+help_user = TELEGRAPH[0].create_page(
     title='SearchX Help',
     author_name='Levi',
     author_url='https://t.me/l3v11',
-    html_content=help_string_user)['url']
+    html_content=help_string_user)['path']
 
 help_string_admin = f'''
-<u><b>Admin Commands</b></u>
+<b><u>Admin Commands</u></b>
 <br><br>
 • <b>/{BotCommands.PermissionCommand}</b> &lt;drive_url&gt; &lt;email&gt;: Set data permission of Drive (Email optional)
 <br><br>
@@ -108,20 +116,22 @@ help_string_admin = f'''
 • <b>/{BotCommands.LogCommand}</b>: Get the log file
 '''
 
-help_admin = telegraph[0].create_page(
+help_admin = TELEGRAPH[0].create_page(
     title='SearchX Help',
     author_name='Levi',
     author_url='https://t.me/l3v11',
-    html_content=help_string_admin)['url']
+    html_content=help_string_admin)['path']
 
 def bot_help(update, context):
     button = ButtonMaker()
-    button.build_button("User", f"{help_user}")
-    button.build_button("Admin", f"{help_admin}")
+    button.build_button("User", f"https://telegra.ph/{help_user}")
+    button.build_button("Admin", f"https://telegra.ph/{help_admin}")
     sendMarkup(help_string, context.bot, update.message, InlineKeyboardMarkup(button.build_menu(2)))
 
 def main():
     start_handler = CommandHandler(BotCommands.StartCommand, start, run_async=True)
+    keys_handler = CommandHandler(BotCommands.ListKeysCommand, listkeys,
+                                  filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
     ping_handler = CommandHandler(BotCommands.PingCommand, ping,
                                   filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
     stats_handler = CommandHandler(BotCommands.StatsCommand, stats,
@@ -131,6 +141,7 @@ def main():
     help_handler = CommandHandler(BotCommands.HelpCommand, bot_help,
                                   filters=CustomFilters.authorized_chat | CustomFilters.authorized_user, run_async=True)
     dispatcher.add_handler(start_handler)
+    dispatcher.add_handler(keys_handler)
     dispatcher.add_handler(ping_handler)
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)

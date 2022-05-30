@@ -11,6 +11,7 @@ import telegram.ext as tg
 
 from dotenv import load_dotenv
 from telegraph import Telegraph
+from telegraph.exceptions import RetryAfterError
 from threading import Lock
 
 socket.setdefaulttimeout(600)
@@ -52,7 +53,10 @@ Interval = []
 DRIVE_NAMES = []
 DRIVE_IDS = []
 INDEX_URLS = []
-telegraph = []
+TELEGRAPH = []
+DEST_DRIVES = {}
+
+AUTHORIZED_CHATS = set()
 
 download_dict_lock = Lock()
 status_reply_dict_lock = Lock()
@@ -62,8 +66,6 @@ download_dict = {}
 # Key: update.effective_chat.id
 # Value: telegram.Message
 status_reply_dict = {}
-
-AUTHORIZED_CHATS = set()
 
 try:
     users = get_config('AUTHORIZED_CHATS')
@@ -86,7 +88,7 @@ except:
     exit(1)
 
 try:
-    parent_id = get_config('DRIVE_FOLDER_ID')
+    PARENT_ID = get_config('DRIVE_FOLDER_ID')
 except:
     LOGGER.error("DRIVE_FOLDER_ID env variable is missing")
     exit(1)
@@ -194,6 +196,22 @@ except:
     pass
 
 try:
+    DEST_LIST_URL = get_config('DEST_LIST_URL')
+    if len(DEST_LIST_URL) == 0:
+        raise KeyError
+    try:
+        res = requests.get(DEST_LIST_URL)
+        if res.status_code == 200:
+            with open('dest_list', 'wb+') as f:
+                f.write(res.content)
+        else:
+            LOGGER.error(f"Failed to load dest_list file [{res.status_code}]")
+    except Exception as e:
+        LOGGER.error(f"DEST_LIST_URL: {e}")
+except:
+    pass
+
+try:
     APPDRIVE_EMAIL = get_config('APPDRIVE_EMAIL')
     APPDRIVE_PASS = get_config('APPDRIVE_PASS')
     if len(APPDRIVE_EMAIL) == 0 or len(APPDRIVE_PASS) == 0:
@@ -224,13 +242,28 @@ if os.path.exists('drive_list'):
             except IndexError:
                 INDEX_URLS.append(None)
 
+if os.path.exists('dest_list'):
+    with open('dest_list', 'r+') as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.strip().split()
+            DEST_DRIVES[line[0]] = line[1:]
+
+def create_account(sname):
+    try:
+        telegra_ph = Telegraph()
+        telegra_ph.create_account(short_name=sname)
+        telegraph_token = telegra_ph.get_access_token()
+        TELEGRAPH.append(Telegraph(access_token=telegraph_token))
+        time.sleep(0.5)
+    except RetryAfterError as e:
+        LOGGER.info(f"Cooldown: {e.retry_after} seconds")
+        time.sleep(e.retry_after)
+        create_account(sname)
+
 for i in range(TELEGRAPH_ACCS):
     sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
-    telegra_ph = Telegraph()
-    telegra_ph.create_account(short_name=sname)
-    telegraph_token = telegra_ph.get_access_token()
-    telegraph.append(Telegraph(access_token=telegraph_token))
-    time.sleep(0.5)
+    create_account(sname)
 LOGGER.info(f"Generated {TELEGRAPH_ACCS} telegraph tokens")
 
 updater = tg.Updater(token=BOT_TOKEN, use_context=True)
